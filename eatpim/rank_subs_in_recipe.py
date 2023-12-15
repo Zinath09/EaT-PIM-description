@@ -150,12 +150,10 @@ def get_ranking(
     all_ingredients = set()
     leaf_ocurrence_count = defaultdict(lambda: 0)
     recipe_leafs = {}
-    print("MAIN_DIR", main_dir)
     all_ingredients_list = list(all_ingredients)
 
     occ_matrix_files = (main_dir / "ing_occ_data.pkl").resolve()
     if (occ_matrix_files.is_file()):
-        print('loading co-occ counts')
         with open(occ_matrix_files, 'rb') as f:
             matrix_data = pickle.load(f)
         ing_to_index = matrix_data['ing_to_index']
@@ -280,7 +278,6 @@ def main(*,
         with open(occ_matrix_files, 'wb') as f:
     
             pickle.dump(matrix_data, f)
-    print("Occ_matrix", time.time() - start)
 
     if target_recipe == '':
         target_recipe_output = random.choice(list(graphs.keys()))
@@ -543,7 +540,6 @@ def fake_main(*,
         with open(occ_matrix_files, 'wb') as f:
     
             pickle.dump(matrix_data, f)
-    print("Occ_matrix", time.time() - start)
 
     if target_recipe == '':
         target_recipe_output = random.choice(list(graphs.keys()))
@@ -565,7 +561,7 @@ def fake_main(*,
     if target_ing == '':
         target_replace_ing = random.choice(list(recipe_leafs[target_recipe_output]))
     rankings = dict()
-    target_recipe_graph = graphs[target_recipe_output]
+    # target_recipe_graph = graphs[target_recipe_output]
     # simple_visualize(target_recipe_graph)
 
     # t1sim = get_ing_cooc_cosine_sims(
@@ -621,7 +617,7 @@ def fake_main(*,
     #     sim_learnt_emb.append([og_sim[i][0], og_sim[i][1]])
     # rankings['4_sim_learnt_emb'] = sim_learnt_emb
 
-    print('5_sim_ing:top 10 ingredients whose embedding is most similar to the original ingredient\'s embedding')
+    # print('5_sim_ing:top 10 ingredients whose embedding is most similar to the original ingredient\'s embedding')
     sim_ing =[]
     for i in range(10):
         sim_ing.append([ing_sim[i][0], ing_sim[i][1]])
