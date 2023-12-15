@@ -116,19 +116,19 @@ def get_ing_cooc_cosine_sims(target_ing, ing_to_index, cooc_matrix):
 
 def get_prob_ing_exists_with_recipe(*, target_ing, ing_to_index, cooc_matrix,
                                     recipe_ingredients, ing_total_occ_arr):
+                                    
     prob_matrix = cooc_matrix / ing_total_occ_arr
     total_ings = prob_matrix.shape[0]
     filter_ings = np.zeros((total_ings, total_ings))
     for ing in recipe_ingredients:
         filter_ings[:, ing_to_index[ing]] = 1
-    prob_matrix = np.multiply(prob_matrix, filter_ings)
-
-    prob_sim = cosine_similarity(prob_matrix[ing_to_index[target_ing]].reshape(1,-1), prob_matrix)[0]
+    prob_matrix = np.asarray(np.multiply(prob_matrix, filter_ings))
+    prob_sim = cosine_similarity(np.asarray(prob_matrix[ing_to_index[target_ing]]).reshape(1,-1), prob_matrix)[0]
     return prob_sim
 
 
 def simple_visualize(G):
-    pos = nx.nx_pydot.graphviz_layout(G, prog="dot") # dot or neato format
+    pos = nx.nx_agraph.graphviz_layout(G, prog="dot") # dot or neato format
     plt.figure(1, figsize=(11, 11))
 
     nx.draw(G, pos, node_size=2000)
@@ -141,6 +141,77 @@ def simple_visualize(G):
     nx.draw_networkx_labels(G, pos, labels=node_labels)
     plt.show()
 
+def get_ranking(
+         target_recipe: str,
+         target_ing: str):
+    
+    input_file: Path = Path('recipe_parsed_sm'),
+    main_dir: Path = Path('models/GraphOps_recipe_parsed_sm_graph_TransE'),
+    all_ingredients = set()
+    leaf_ocurrence_count = defaultdict(lambda: 0)
+    recipe_leafs = {}
+    print("MAIN_DIR", main_dir)
+    all_ingredients_list = list(all_ingredients)
+
+    occ_matrix_files = (main_dir / "ing_occ_data.pkl").resolve()
+    if (occ_matrix_files.is_file()):
+        print('loading co-occ counts')
+        with open(occ_matrix_files, 'rb') as f:
+            matrix_data = pickle.load(f)
+        ing_to_index = matrix_data['ing_to_index']
+        index_to_ing = matrix_data['index_to_ing']
+        ing_cooc_matrix = matrix_data['ing_cooc_matrix']
+        ing_total_occ_count_arr = matrix_data['ing_total_occ_count_arr']
+    else:
+        ing_to_index, index_to_ing, \
+        ing_cooc_matrix, ing_total_occ_count_arr = \
+            compute_ing_cooc_matrix(all_ingredients_list,
+                                    recipe_leafs,
+                                    leaf_ocurrence_count)
+        matrix_data = {
+            'ing_to_index': ing_to_index ,
+            'index_to_ing': index_to_ing ,
+            'ing_cooc_matrix': ing_cooc_matrix ,
+            'ing_total_occ_count_arr': ing_total_occ_count_arr
+        }
+        with open(occ_matrix_files, 'wb') as f:
+    
+            pickle.dump(matrix_data, f)
+    print(matrix_data)
+    return matrix_data
+    # if target_recipe == '':
+    #     target_recipe_output = random.choice(list(graphs.keys()))
+
+    # else:
+    #     target_recipe = f"RECIPE_OUTPUT_{target_recipe}"
+    #     if target_recipe in graphs.keys():
+    #         target_recipe_output = target_recipe
+    #     else:
+    #         print("The recipe you specified is not contained in the data.")
+    #         return
+        
+    #     if target_ing != '':
+    #         if target_ing in recipe_leafs[target_recipe_output]:
+    #             target_replace_ing = target_ing
+    #         else:
+    #             print("The replacement ingredient you specified is not contained in the recipe")
+    #             return
+    # if target_ing == '':
+    #     target_replace_ing = random.choice(list(recipe_leafs[target_recipe_output]))
+
+    # t1sim = get_ing_cooc_cosine_sims(
+    #     target_ing=target_replace_ing,
+    #     ing_to_index=ing_to_index,
+    #     cooc_matrix=ing_cooc_matrix)
+    # top_sims = np.argsort(t1sim)[::-1]
+    # print('')
+    # print("top 10 cosine similarity of ingredient-coocurrences: ")
+    # ranking = []
+    # for i in top_sims[:10]:
+    #     print(index_to_ing[i], t1sim[i])
+    #     ranking.append([index_to_ing[i], t1sim[i]])
+    # return ranking
+
 
 def main(*,
          input_file: Path,
@@ -150,6 +221,8 @@ def main(*,
          recipe_operations,
          target_recipe: str,
          target_ing: str):
+    
+    
     valid_ingredient_set = set(valid_ingredient_list)
     all_ingredients = set()
     leaf_ocurrence_count = defaultdict(lambda: 0)
@@ -176,7 +249,7 @@ def main(*,
                 nodecount += 1
         recipe_intermediatenode_count[data['output_node']] = nodecount
 
-
+    print("Generate_graph", time.time() - start)
     print(f'{len(graphs)} graphs loaded')
     print(f'{len(all_ingredients)} distinct leaf nodes')
     print('')
@@ -205,10 +278,13 @@ def main(*,
             'ing_total_occ_count_arr': ing_total_occ_count_arr
         }
         with open(occ_matrix_files, 'wb') as f:
+    
             pickle.dump(matrix_data, f)
+    print("Occ_matrix", time.time() - start)
 
     if target_recipe == '':
         target_recipe_output = random.choice(list(graphs.keys()))
+
     else:
         target_recipe = f"RECIPE_OUTPUT_{target_recipe}"
         if target_recipe in graphs.keys():
@@ -216,6 +292,7 @@ def main(*,
         else:
             print("The recipe you specified is not contained in the data.")
             return
+        
         if target_ing != '':
             if target_ing in recipe_leafs[target_recipe_output]:
                 target_replace_ing = target_ing
@@ -225,11 +302,11 @@ def main(*,
     if target_ing == '':
         target_replace_ing = random.choice(list(recipe_leafs[target_recipe_output]))
 
-
+    print("OCH",target_recipe, target_replace_ing)
     print(f'recipe choice: {target_recipe_output}, replacing {target_replace_ing}')
     print(f'number of intermediate nodes: {recipe_intermediatenode_count[target_recipe_output]}')
     target_recipe_graph = graphs[target_recipe_output]
-    simple_visualize(target_recipe_graph)
+    # simple_visualize(target_recipe_graph)
 
     t1sim = get_ing_cooc_cosine_sims(
         target_ing=target_replace_ing,
@@ -267,7 +344,6 @@ def main(*,
                                                              replace_ing=target_replace_ing,
                                                              ing_list=all_ingredients_list)
     ing_sim = kge_calc.ingredient_sim(target_ing=target_replace_ing, ing_set=all_ingredients)
-    print("")
     print(f"{target_replace_ing} occ frequency in data: ", ing_total_occ_count_arr[ing_to_index[target_replace_ing]])
 
     print('')
@@ -360,7 +436,6 @@ def compute_ing_cooc_matrix(all_ingredients_list, recipe_leafs, leaf_ocurrence_c
 
     return ing_to_index, index_to_ing, ing_cooc_matrix,ing_total_occ_count_arr
 
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -398,6 +473,191 @@ if __name__ == "__main__":
          kge_calc=calc, recipe_operations=recipe_operations,
          target_recipe=args.target_recipe, target_ing=args.target_ingredient)
 
+    #     print(index_to_ing[i], t1sim[i])
+    #     ranking.append([index_to_ing[i], t1sim[i]])
+    # return ranking
+
+
+def fake_main(*,
+         input_file: Path,
+         main_dir: Path,
+         valid_ingredient_list: List,
+         kge_calc: FGCalculator,
+         recipe_operations,
+         target_recipe: str,
+         target_ing: str):
+    
+    
+    valid_ingredient_set = set(valid_ingredient_list)
+    all_ingredients = set()
+    leaf_ocurrence_count = defaultdict(lambda: 0)
+    recipe_leafs = {}
+    with open(input_file, 'r') as f:
+        recipe_data = json.load(f)
+    graphs = {}
+    start = time.time()
+
+    recipe_intermediatenode_count = {}
+    for recipe, data in recipe_data.items():
+        nodecount = 0
+        G = nx.DiGraph()
+        for e in data['edges']:
+            G.add_edge(e[0], e[1])
+        graphs[data['output_node']] = G
+        recipe_leafs[data['output_node']] = set()
+        for node in G.nodes():
+            if node in valid_ingredient_set:
+                all_ingredients.add(node)
+                recipe_leafs[data['output_node']].add(node)
+                leaf_ocurrence_count[node] += 1
+            elif node != data['output_node']:
+                nodecount += 1
+        recipe_intermediatenode_count[data['output_node']] = nodecount
+
+    # print(f'{len(graphs)} graphs loaded')
+    # print(f'{len(all_ingredients)} distinct leaf nodes')
+    # print('')
+    all_ingredients_list = list(all_ingredients)
+
+    occ_matrix_files = (main_dir / "ing_occ_data.pkl").resolve()
+    if (occ_matrix_files.is_file()):
+        with open(occ_matrix_files, 'rb') as f:
+            matrix_data = pickle.load(f)
+        ing_to_index = matrix_data['ing_to_index']
+        index_to_ing = matrix_data['index_to_ing']
+        ing_cooc_matrix = matrix_data['ing_cooc_matrix']
+        ing_total_occ_count_arr = matrix_data['ing_total_occ_count_arr']
+    else:
+
+        ing_to_index, index_to_ing, \
+        ing_cooc_matrix, ing_total_occ_count_arr = \
+            compute_ing_cooc_matrix(all_ingredients_list,
+                                    recipe_leafs,
+                                    leaf_ocurrence_count)
+        matrix_data = {
+            'ing_to_index': ing_to_index ,
+            'index_to_ing': index_to_ing ,
+            'ing_cooc_matrix': ing_cooc_matrix ,
+            'ing_total_occ_count_arr': ing_total_occ_count_arr
+        }
+        with open(occ_matrix_files, 'wb') as f:
+    
+            pickle.dump(matrix_data, f)
+    print("Occ_matrix", time.time() - start)
+
+    if target_recipe == '':
+        target_recipe_output = random.choice(list(graphs.keys()))
+
+    else:
+        target_recipe = f"RECIPE_OUTPUT_{target_recipe}"
+        if target_recipe in graphs.keys():
+            target_recipe_output = target_recipe
+        else:
+            print("The recipe you specified is not contained in the data.")
+            return
+        
+        if target_ing != '':
+            if target_ing in recipe_leafs[target_recipe_output]:
+                target_replace_ing = target_ing
+            else:
+                print("The replacement ingredient you specified is not contained in the recipe")
+                return
+    if target_ing == '':
+        target_replace_ing = random.choice(list(recipe_leafs[target_recipe_output]))
+    rankings = dict()
+    target_recipe_graph = graphs[target_recipe_output]
+    # simple_visualize(target_recipe_graph)
+
+    # t1sim = get_ing_cooc_cosine_sims(
+    #     target_ing=target_replace_ing,
+    #     ing_to_index=ing_to_index,
+    #     cooc_matrix=ing_cooc_matrix)
+    # top_sims = np.argsort(t1sim)[::-1]
+    # print("1_cooc: top 10 cosine similarity of ingredient-coocurrences: ")
+
+    # cooc_matrix =[]
+    # for i in top_sims[:10]:
+    #     cooc_matrix.append([index_to_ing[i], t1sim[i]])
+    # rankings['1_cooc'] = cooc_matrix
+    # t2sim = get_prob_ing_exists_with_recipe(
+    #     target_ing=target_replace_ing,
+    #     ing_to_index=ing_to_index,
+    #     cooc_matrix=ing_cooc_matrix,
+    #     ing_total_occ_arr=ing_total_occ_count_arr,
+    #     recipe_ingredients=recipe_leafs[target_recipe_output]
+    # )
+    # top_sims2 = np.argsort(t2sim)[::-1]
+    # print("2_cooc_inside_matrix: top 10 cosine similarity of ingredient-coocurrences, only considering ingredients in the target recipe: ")
+    # cooc_inside_matrix =[]
+    # for i in top_sims2[:10]:
+    #     cooc_inside_matrix.append([index_to_ing[i], t2sim[i]])
+    # rankings['2_cooc_inside_matrix'] = cooc_inside_matrix
+
+    # target_actions_in_recipe = set()
+    # for n in nx.dfs_successors(target_recipe_graph, target_replace_ing):
+    #     if n == target_replace_ing:
+    #         continue
+    #     action_name = n.split("_")[1]
+    #     target_actions_in_recipe.add(action_name)
+
+    # recipe_ops = recipe_operations[target_recipe_output]
+    # calc_sim, og_sim = kge_calc.ingredient_operation_sim(target_recipe=target_recipe_output,
+    #                                                          recipe_ops=recipe_ops,
+    #                                                          replace_ing=target_replace_ing,
+    #                                                          ing_list=all_ingredients_list)
+    ing_sim = kge_calc.ingredient_sim(target_ing=target_replace_ing, ing_set=all_ingredients)
+    # # print(f"{target_replace_ing} occ frequency in data: ", ing_total_occ_count_arr[ing_to_index[target_replace_ing]])
+
+
+    # print('3_sim_output: top 10 ingredients that produce outputs most similar to the original calculated output')
+    # sim_output =[]
+    # for i in range(10):
+    #     sim_output.append([calc_sim[i][0], calc_sim[i][1]])
+    # rankings['3_sim_output'] = sim_output
+    
+    # print('4_sim_learnt_emb: top 10 ingredients that produce outputs most similar to the original recipe\'s learned embedding')
+    # sim_learnt_emb =[]
+    # for i in range(10):
+    #     sim_learnt_emb.append([og_sim[i][0], og_sim[i][1]])
+    # rankings['4_sim_learnt_emb'] = sim_learnt_emb
+
+    print('5_sim_ing:top 10 ingredients whose embedding is most similar to the original ingredient\'s embedding')
+    sim_ing =[]
+    for i in range(10):
+        sim_ing.append([ing_sim[i][0], ing_sim[i][1]])
+    rankings['5_sim_ing'] = sim_ing
+
+    return target_recipe_output, target_replace_ing, rankings
+
+def execute_recipe_processing(data_dir="data/recipe_parsed_sm", model_dir="models/GraphOps_recipe_parsed_sm_graph_TransE", target_recipe='', target_ingredient=''):
+    base_dir = Path(os.getcwd())  # Get the current working directory as the base directory
+    main_dir = (base_dir / data_dir).resolve()  # Modify with your base directory path
+    input_file = (main_dir / "recipe_tree_data.json").resolve()
+    relation_input_file = (main_dir / "entity_relations.json").resolve()
+    
+    with open((main_dir / "ingredient_list.json").resolve(), 'r') as f:
+        ingredient_list = json.load(f)
+    
+    calc = load_embedding_data(main_dir, model_dir)  # Assuming you have a function like this
+    
+    recipe_operations = {}
+
+    for dset in ['train.txt', 'valid.txt', 'test.txt']:
+        with open((main_dir / f'eatpim_triple_data/{dset}').resolve()) as fin:
+            for line in fin:
+                graph_dict = json.loads(line)
+                # there should only be one item in the first depth of this dict
+                # the key is the output recipe node, the value is the dictionary representation of the flowgraph
+                for k, v in graph_dict.items():
+                    recipe_operations[str(k)] = content_to_ids(v)
+
+    return fake_main(input_file=input_file,
+         main_dir=main_dir,
+         valid_ingredient_list=ingredient_list,
+         kge_calc=calc,
+         recipe_operations=recipe_operations,
+         target_recipe=target_recipe,
+         target_ing=target_ingredient)
 
 #RECIPE_OUTPUT_365375, replacing sugar
 # good example?

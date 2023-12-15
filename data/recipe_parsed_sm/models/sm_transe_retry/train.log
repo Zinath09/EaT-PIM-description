@@ -1,0 +1,7 @@
+2023-12-10 20:28:57 INFO     Model: TransE
+2023-12-10 20:28:57 INFO     Data Path: recipe_parsed_sm
+2023-12-10 20:28:57 INFO     #entity: 75442
+2023-12-10 20:28:57 INFO     #relation: 2618
+2023-12-10 20:28:59 INFO     #train: 14635
+2023-12-10 20:28:59 INFO     #valid: 3137
+2023-12-10 20:28:59 INFO     #test: 3137
